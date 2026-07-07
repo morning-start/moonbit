@@ -7,92 +7,87 @@ function PLUGIN:PostInstall(ctx)
     local file = require("file")
     local cmd = require("cmd")
     local log = require("log")
+    local http = require("http")
+    local archiver = require("archiver")
 
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local path = sdkInfo.path
     local version = sdkInfo.version
 
-    -- 确保 bin 目录中的可执行文件有执行权限（Unix 系统）
-    if RUNTIME.osType ~= "windows" then
-        pcall(cmd.exec, "chmod -R +x " .. path .. "/bin/")
-        -- 显式确保 internal/tcc 可执行（见官方 unix.sh）
-        pcall(cmd.exec, "chmod +x " .. path .. "/bin/internal/tcc")
-    end
-
-    local bin_dir = path .. "/bin"
-    local moon_bin = bin_dir .. "/moon"
+    local bin_dir = file.join_path(path, "bin")
+    local lib_dir = file.join_path(path, "lib")
+    local core_dir = file.join_path(lib_dir, "core")
+    local moon_bin = file.join_path(bin_dir, "moon")
     if RUNTIME.osType == "windows" then
         moon_bin = moon_bin .. ".exe"
     end
 
-    -- 核心库目标位置：<MOON_HOME>/lib/core/
-    -- 与官方安装脚本行为一致
-    local lib_dir = path .. "/lib"
-    local core_dir = lib_dir .. "/core"
-
-    -- 1) 优先使用附加机制提供的核心库（vfox 兼容）
-    local core_sdk = ctx.sdkInfo["core"]
-    if core_sdk ~= nil and file.exists(core_sdk.path) then
-        core_dir = core_sdk.path
-        log.info("使用附加机制提供的核心库")
+    local function run_host_command(windows_cmd, unix_cmd)
+        local command = (RUNTIME.osType == "windows") and windows_cmd or unix_cmd
+        return pcall(cmd.exec, command)
     end
 
-    -- 2) 如果核心库不存在，直接下载到标准位置
-    if not file.exists(core_dir) then
-        log.info("正在下载 MoonBit 核心库...")
+    local function ensure_dir(dir)
+        return run_host_command(
+            'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path \'' .. dir .. '\' | Out-Null"',
+            'mkdir -p "' .. dir .. '"'
+        )
+    end
 
+    local function remove_dir(dir)
+        if not file.exists(dir) then
+            return true
+        end
+        return run_host_command(
+            'powershell -NoProfile -Command "Remove-Item -Force -Recurse -Path \'' .. dir .. '\'"',
+            'rm -rf "' .. dir .. '"'
+        )
+    end
+
+    local function make_unix_binaries_executable()
+        if RUNTIME.osType == "windows" then
+            return true
+        end
+
+        local ok, err = pcall(cmd.exec, "chmod -R +x " .. bin_dir .. "/")
+        if not ok then
+            return ok, err
+        end
+        return pcall(cmd.exec, "chmod +x " .. file.join_path(bin_dir, "internal", "tcc"))
+    end
+
+    local function download_and_extract_core()
         local encoded_version = util.encode_version(version)
         local ext = util.get_archive_ext()
-
-        local function download_core(core_url)
-            if RUNTIME.osType == "windows" then
-                local tmp_archive = path .. "/core" .. ext
-                pcall(cmd.exec, 'if not exist "' .. lib_dir .. '" mkdir "' .. lib_dir .. '"')
-
-                local ok, err = pcall(cmd.exec,
-                    "powershell -NoProfile -Command \"Invoke-WebRequest -Uri '"
-                    .. core_url .. "' -OutFile '" .. tmp_archive .. "' -UseBasicParsing\""
-                )
-                if ok then
-                    ok, err = pcall(cmd.exec,
-                        "powershell -NoProfile -Command \"Expand-Archive -Path '"
-                        .. tmp_archive .. "' -DestinationPath '" .. lib_dir .. "' -Force\""
-                    )
-                    pcall(cmd.exec,
-                        "powershell -NoProfile -Command \"Remove-Item -Path '"
-                        .. tmp_archive .. "' -Force\""
-                    )
-                end
-                return ok, err
-            else
-                pcall(cmd.exec, 'mkdir -p "' .. lib_dir .. '"')
-                return pcall(cmd.exec,
-                    'curl -fsSL "' .. core_url .. '" | tar -xz -C "' .. lib_dir .. '"'
-                )
-            end
-        end
-
-        -- 先尝试版本化 URL，如果失败则回退到 core-latest（参考 Scoop 清单的做法）
+        local archive = file.join_path(path, "core" .. ext)
         local core_url = util.CLI_MOONBIT .. "/cores/core-" .. encoded_version .. ext
-        local ok, err = download_core(core_url)
+
+        local ok, err = ensure_dir(lib_dir)
         if not ok then
-            log.warn("版本化核心库下载失败，尝试 core-latest ...")
-            local fallback_url = util.CLI_MOONBIT .. "/cores/core-latest" .. ext
-            ok, err = download_core(fallback_url)
-        end
-        if not ok then
-            log.warn("核心库下载或解压失败: " .. tostring(err))
-            return
+            return ok, "创建 lib 目录失败: " .. tostring(err)
         end
 
-        log.info("核心库下载完成")
+        ok, err = remove_dir(core_dir)
+        if not ok then
+            return ok, "删除旧核心库失败: " .. tostring(err)
+        end
+
+        _, err = http.download_file({ url = core_url }, archive)
+        if err ~= nil then
+            pcall(os.remove, archive)
+            return false, "下载核心库失败: " .. tostring(err)
+        end
+
+        _, err = archiver.decompress(archive, lib_dir)
+        pcall(os.remove, archive)
+        if err ~= nil then
+            return false, "解压核心库失败: " .. tostring(err)
+        end
+
+        return true
     end
 
-    -- 3) 编译核心库
-    if file.exists(core_dir) then
-        log.info("正在编译 MoonBit 核心库...")
-
-        -- moon bundle 需要 MOON_HOME 指向 SDK 根目录才能找到 lib/core/
+    local function bundle_core()
         local path_sep = (RUNTIME.osType == "windows") and ";" or ":"
         local bundle_env = {
             MOON_HOME = path,
@@ -110,17 +105,35 @@ function PLUGIN:PostInstall(ctx)
             return ok
         end
 
-        -- bundle --all（默认目标）
         bundle("--all")
-
-        -- bundle --target wasm-gc（WebAssembly GC 支持）
         bundle("--target wasm-gc --quiet")
-
-        -- nightly 版本额外编译 LLVM 后端（见官方 unix.sh）
         if version == "nightly" then
             bundle("--target llvm")
         end
+    end
 
+    -- 确保 bin 目录中的可执行文件有执行权限（Unix 系统）
+    do
+        local ok, err = make_unix_binaries_executable()
+        if not ok then
+            log.warn("设置可执行权限失败: " .. tostring(err))
+        end
+    end
+
+    -- 1) 按官方安装脚本处理核心库：删除已有 core，再下载并解压到 <MOON_HOME>/lib
+    log.info("正在下载 MoonBit 核心库...")
+    local ok, err = download_and_extract_core()
+    if not ok then
+        log.warn(tostring(err))
+        return
+    end
+
+    log.info("核心库下载完成")
+
+    -- 2) 编译核心库
+    if file.exists(core_dir) then
+        log.info("正在编译 MoonBit 核心库...")
+        bundle_core()
         log.info("MoonBit " .. version .. " 安装完成。")
     else
         log.warn("核心库未找到，跳过 bundle 步骤。")
