@@ -3,13 +3,14 @@ name: CI
 on:
     push:
         branches: [main]
-        tags: ["v*"]
+        tags: ["v*", "manifest"]
     pull_request:
         branches: [main]
     workflow_dispatch:
 
 jobs:
     lint:
+        if: github.ref != 'refs/tags/manifest'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -19,6 +20,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     test:
+        if: github.ref != 'refs/tags/manifest'
         strategy:
             matrix:
                 os: [ubuntu-latest, macos-latest, windows-latest]
@@ -28,7 +30,7 @@ jobs:
             - uses: jdx/mise-action@v4
             - run: mise run test
 
-    release:
+    release-plugin:
         if: startsWith(github.ref, 'refs/tags/v')
         needs: [lint, test]
         runs-on: ubuntu-latest
@@ -37,29 +39,10 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Generate manifest.json
-              run: |
-                  VERSION="${GITHUB_REF_NAME#v}"
-                  cat > manifest.json <<EOF
-                  {
-                    "name": "moonbit",
-                    "version": "${VERSION}",
-                    "description": "MoonBit 编程语言工具链。MoonBit 是一个用于云和边缘计算的端到端编程语言工具链，使用 WebAssembly。",
-                    "homepage": "https://github.com/${{ github.repository }}",
-                    "license": "MIT",
-                    "minRuntimeVersion": "0.2.0",
-                    "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/moonbit-${VERSION}.zip",
-                    "notes": [
-                      "版本 ${VERSION} 发布"
-                    ]
-                  }
-                  EOF
-
             - name: Package plugin
               run: |
                   VERSION="${GITHUB_REF_NAME#v}"
-                  git archive --format=zip --output="moonbit-${VERSION}.zip" "${{ github.ref_name }}" \
-                    --add-file=manifest.json
+                  git archive --format=zip --output="moonbit-${VERSION}.zip" "${{ github.ref_name }}"
 
             - name: Create Release
               uses: softprops/action-gh-release@v3
@@ -70,4 +53,27 @@ jobs:
                   generate_release_notes: true
                   files: |
                       moonbit-*.zip
+
+    release-manifest:
+        if: github.ref == 'refs/tags/manifest'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Verify manifest.json exists
+              run: test -f manifest.json
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v3
+              with:
+                  name: manifest
+                  tag_name: manifest
+                  draft: false
+                  prerelease: false
+                  generate_release_notes: false
+                  files: |
                       manifest.json
