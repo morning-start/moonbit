@@ -4,7 +4,6 @@
 --- @field ctx.version string 用户请求的版本
 --- @return table 版本信息和下载地址
 function PLUGIN:PreInstall(ctx)
-    local http = require("http")
     local util = require("util")
 
     local version = ctx.version
@@ -51,18 +50,9 @@ function PLUGIN:PreInstall(ctx)
     local filename = "moonbit-" .. platform .. dev_suffix .. ext
     local url = util.CLI_MOONBIT .. "/binaries/" .. encoded_version .. "/" .. filename
 
-    -- 尝试获取 SHA256 校验和
-    local sha256 = nil
-    local sha256_url = util.CLI_MOONBIT .. "/binaries/" .. encoded_version .. "/moonbit-" .. platform .. dev_suffix .. ".sha256"
-    local resp, err = http.get({ url = sha256_url })
-    if err == nil and resp.status_code == 200 then
-        sha256 = resp.body:match("^(%x+)")
-    end
-
     return {
         version = version,
         url = url,
-        sha256 = sha256,
         note = "正在下载 MoonBit " .. version .. " (" .. platform .. ")",
     }
 end
