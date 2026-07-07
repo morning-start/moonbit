@@ -135,6 +135,7 @@ function PLUGIN:PostInstall(ctx)
         log.info("正在编译 MoonBit 核心库...")
         bundle_core()
         log.info("MoonBit " .. version .. " 安装完成。")
+        log.info("请手动运行 `moon update` 更新缓存。")
     else
         log.warn("核心库未找到，跳过 bundle 步骤。")
     end
