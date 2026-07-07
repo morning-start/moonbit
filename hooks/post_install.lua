@@ -43,41 +43,46 @@ function PLUGIN:PostInstall(ctx)
 
         local encoded_version = util.encode_version(version)
         local ext = util.get_archive_ext()
+
+        local function download_core(core_url)
+            if RUNTIME.osType == "windows" then
+                local tmp_archive = path .. "/core" .. ext
+                pcall(cmd.exec, 'if not exist "' .. lib_dir .. '" mkdir "' .. lib_dir .. '"')
+
+                local ok, err = pcall(cmd.exec,
+                    "powershell -NoProfile -Command \"Invoke-WebRequest -Uri '"
+                    .. core_url .. "' -OutFile '" .. tmp_archive .. "' -UseBasicParsing\""
+                )
+                if ok then
+                    ok, err = pcall(cmd.exec,
+                        "powershell -NoProfile -Command \"Expand-Archive -Path '"
+                        .. tmp_archive .. "' -DestinationPath '" .. lib_dir .. "' -Force\""
+                    )
+                    pcall(cmd.exec,
+                        "powershell -NoProfile -Command \"Remove-Item -Path '"
+                        .. tmp_archive .. "' -Force\""
+                    )
+                end
+                return ok, err
+            else
+                pcall(cmd.exec, 'mkdir -p "' .. lib_dir .. '"')
+                return pcall(cmd.exec,
+                    'curl -fsSL "' .. core_url .. '" | tar -xz -C "' .. lib_dir .. '"'
+                )
+            end
+        end
+
+        -- 先尝试版本化 URL，如果失败则回退到 core-latest（参考 Scoop 清单的做法）
         local core_url = util.CLI_MOONBIT .. "/cores/core-" .. encoded_version .. ext
-
-        if RUNTIME.osType == "windows" then
-            -- Windows: 用 PowerShell 下载并解压
-            local tmp_archive = path .. "/core" .. ext
-            pcall(cmd.exec, 'if not exist "' .. lib_dir .. '" mkdir "' .. lib_dir .. '"')
-
-            local ok, err = pcall(cmd.exec,
-                "powershell -NoProfile -Command \"Invoke-WebRequest -Uri '"
-                .. core_url .. "' -OutFile '" .. tmp_archive .. "' -UseBasicParsing\""
-            )
-            if ok then
-                ok, err = pcall(cmd.exec,
-                    "powershell -NoProfile -Command \"Expand-Archive -Path '"
-                    .. tmp_archive .. "' -DestinationPath '" .. lib_dir .. "' -Force\""
-                )
-                pcall(cmd.exec,
-                    "powershell -NoProfile -Command \"Remove-Item -Path '"
-                    .. tmp_archive .. "' -Force\""
-                )
-            end
-            if not ok then
-                log.warn("核心库下载或解压失败: " .. tostring(err))
-                return
-            end
-        else
-            -- Unix: 用 curl 下载 + tar 解压
-            pcall(cmd.exec, 'mkdir -p "' .. lib_dir .. '"')
-            local ok, err = pcall(cmd.exec,
-                'curl -fsSL "' .. core_url .. '" | tar -xz -C "' .. lib_dir .. '"'
-            )
-            if not ok then
-                log.warn("核心库下载或解压失败: " .. tostring(err))
-                return
-            end
+        local ok, err = download_core(core_url)
+        if not ok then
+            log.warn("版本化核心库下载失败，尝试 core-latest ...")
+            local fallback_url = util.CLI_MOONBIT .. "/cores/core-latest" .. ext
+            ok, err = download_core(fallback_url)
+        end
+        if not ok then
+            log.warn("核心库下载或解压失败: " .. tostring(err))
+            return
         end
 
         log.info("核心库下载完成")
