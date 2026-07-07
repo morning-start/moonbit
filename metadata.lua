@@ -13,10 +13,10 @@ PLUGIN = { -- luacheck: ignore
     description = "MoonBit 编程语言工具链。MoonBit 是一个用于云和边缘计算的端到端编程语言工具链，使用 WebAssembly。",
 
     -- 插件作者/维护者
-    author = "mise-plugins",
+    author = "morning-start",
 
     -- 插件仓库地址
-    homepage = "https://github.com/mise-plugins/mise-moonbit",
+    homepage = "https://github.com/morning-start/moonbit",
 
     -- 最低 mise 运行时版本
     minRuntimeVersion = "0.2.0",
