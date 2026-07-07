@@ -13,7 +13,7 @@ mise plugin add moonbit
 或通过 GitHub 仓库安装：
 
 ```bash
-mise plugin add moonbit https://github.com/mise-plugins/mise-moonbit.git
+mise plugin add moonbit https://github.com/morning-start/moonbit.git
 ```
 
 ## 使用
