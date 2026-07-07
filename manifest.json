@@ -1,0 +1,13 @@
+{
+  "name": "moonbit",
+  "version": "1.0.0",
+  "description": "MoonBit 编程语言工具链。MoonBit 是一个用于云和边缘计算的端到端编程语言工具链，使用 WebAssembly。",
+  "homepage": "https://github.com/morning-start/moonbit",
+  "license": "MIT",
+  "minRuntimeVersion": "0.2.0",
+  "downloadUrl": "https://github.com/morning-start/moonbit/releases/download/v1.0.0/moonbit-v1.0.0.zip",
+  "notes": [
+    "首次正式发布",
+    "平台支持与官方安装脚本一致：macOS ARM64、Linux x86_64/aarch64、Windows x86_64/ARM64"
+  ]
+}

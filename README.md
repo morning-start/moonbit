@@ -1,6 +1,7 @@
 # mise-moonbit
 
 <p align="center">
+  <a href="https://github.com/morning-start/moonbit/releases"><img src="https://img.shields.io/github/v/release/morning-start/moonbit?style=flat-square" alt="GitHub release"></a>
   <a href="https://github.com/morning-start/moonbit/actions"><img src="https://img.shields.io/github/actions/workflow/status/morning-start/moonbit/ci.yml?style=flat-square" alt="CI Status"></a>
   <a href="https://github.com/morning-start/moonbit/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
