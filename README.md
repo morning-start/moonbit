@@ -20,14 +20,17 @@
 ## 快速开始
 
 ```bash
-# 安装插件
-mise plugin add moonbit
+# 安装插件（插件未收录官方注册表前，需指定 Git 仓库源）
+mise plugin add moonbit https://github.com/morning-start/vfox-moonbit
 
 # 安装最新版本
 mise install moonbit@latest
 
 # 设置全局默认版本
 mise use -g moonbit@latest
+
+# 项目级版本锁定（创建 .mise.toml）
+mise use moonbit
 ```
 
 ## 版本管理
