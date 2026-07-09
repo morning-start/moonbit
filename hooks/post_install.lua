@@ -155,4 +155,16 @@ function PLUGIN:PostInstall(ctx)
     else
         log.warn("核心库未找到，跳过 bundle 步骤。")
     end
+
+    -- 3) 创建/更新 ~/.moon 软链接指向当前版本
+    do
+        local home = os.getenv("HOME") or os.getenv("USERPROFILE")
+        if home then
+            local moon_link = file.join_path(home, ".moon")
+            -- 已存在真实目录时不覆盖
+            if not file.exists(moon_link) then
+                pcall(file.symlink, path, moon_link)
+            end
+        end
+    end
 end
