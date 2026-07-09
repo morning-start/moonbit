@@ -24,6 +24,7 @@
 mise plugin add moonbit https://github.com/morning-start/vfox-moonbit
 
 # 安装最新版本
+# 使用前一定要删掉 ~/.moon 目录
 mise install moonbit@latest
 
 # 设置全局默认版本
