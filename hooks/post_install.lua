@@ -156,14 +156,24 @@ function PLUGIN:PostInstall(ctx)
         log.warn("核心库未找到，跳过 bundle 步骤。")
     end
 
-    -- 3) 创建/更新 ~/.moon 软链接指向当前版本
+    -- 3) 创建 ~/.moon 软链接指向当前安装版本（仅 ~/.moon 不存在时）
     do
         local home = os.getenv("HOME") or os.getenv("USERPROFILE")
         if home then
             local moon_link = file.join_path(home, ".moon")
-            -- 已存在真实目录时不覆盖
             if not file.exists(moon_link) then
-                pcall(file.symlink, path, moon_link)
+                local ok, err
+                if RUNTIME.osType == "windows" then
+                    -- Windows 使用目录交接点 (junction)，无需管理员权限
+                    ok, err = pcall(require("cmd").exec,
+                        'cmd /c mklink /J "' .. moon_link .. '" "' .. path .. '" 2>nul')
+                else
+                    ok, err = pcall(file.symlink, path, moon_link)
+                end
+                if not ok then
+                    log.warn("创建 ~/.moon 软链接失败: " .. tostring(err))
+                    log.warn("MOON_HOME 将直接指向安装路径。")
+                end
             end
         end
     end
