@@ -7,6 +7,22 @@ function PLUGIN:Available(ctx)
     local json = require("json")
     local util = require("util")
 
+    -- 使用 GitHub Token 提高 API 速率限制（60 → 5000 次/小时）
+    -- 优先读取环境变量，其次尝试 gh CLI 自动获取
+    local github_token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if not github_token then
+        local ok, token = pcall(require("cmd").exec, "gh auth token")
+        if ok then
+            github_token = token:gsub("%s+", "")
+        end
+    end
+    local headers = nil
+    if github_token then
+        headers = {
+            Authorization = "Bearer " .. github_token,
+        }
+    end
+
     local all_versions = {}
     local page = 1
     local per_page = 100
@@ -19,6 +35,7 @@ function PLUGIN:Available(ctx)
 
         local resp, err = http.get({
             url = url,
+            headers = headers,
         })
 
         if err ~= nil then
