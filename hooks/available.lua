@@ -42,7 +42,16 @@ function PLUGIN:Available(ctx)
             error("获取 MoonBit 版本列表失败: " .. err)
         end
 
-        if resp.status_code ~= 200 then
+        if resp.status_code == 403 and not github_token then
+            error("GitHub API 速率限制已用尽（60 次/小时）。\n" ..
+                  "可通过以下方式提高限制到 5000 次/小时：\n" ..
+                  "  1. 设置环境变量: export GITHUB_TOKEN=\"你的_token\"\n" ..
+                  "  2. 或使用 gh CLI 登录: gh auth login")
+        elseif resp.status_code == 403 and github_token then
+            error("GitHub API 返回 403，请检查 Token 是否有效。\n" ..
+                  "  Token 来源: " .. (os.getenv("GITHUB_TOKEN") and "GITHUB_TOKEN" or
+                                       os.getenv("GH_TOKEN") and "GH_TOKEN" or "gh auth token"))
+        elseif resp.status_code ~= 200 then
             error("GitHub API 返回状态码 " .. resp.status_code .. ": " .. (resp.body or ""))
         end
 
